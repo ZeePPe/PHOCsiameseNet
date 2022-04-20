@@ -67,7 +67,7 @@ phoc_rep = measurer.get_embedding(img1)
 distance12 = measurer.get_distance(img1, img2)
 distance13 = measurer.get_distance(img1, img3)
 
-#print(phoc_rep)
+print(phoc_rep)
 
 print(f"Image 1 -> class{label1.item()}, file:{path1}")
 print(f"Image 1 -> class{label2.item()}, file:{path2}")

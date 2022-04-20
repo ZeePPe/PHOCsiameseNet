@@ -38,15 +38,11 @@ class PHOCNet(nn.Module):
         y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
         y = F.relu(self.conv3_1(y))
         y = F.relu(self.conv3_2(y))
-
         y = F.relu(self.conv3_3(y))
-        # print(y.shape)
-        y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
+        #y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
         y = F.relu(self.conv3_4(y))
         y = F.relu(self.conv3_5(y))
-
         y = F.relu(self.conv3_6(y))
-        # print(y.shape)
         # y = F.max_pool2d(y, kernel_size=2, stride=2, padding=0)
         y = F.relu(self.conv4_1(y))
         y = F.relu(self.conv4_2(y))

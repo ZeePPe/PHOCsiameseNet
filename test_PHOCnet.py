@@ -11,6 +11,8 @@ from dataset.myImageFolder import ImageFolderWithPaths
 from siamese_measurer import SiameseMeasurer
 from models.networks import FrozenPHOCnet
 
+import time
+
 
 BASE_MODEL_NAME = 'weights/PHOC_best.pth'
 TRAINED_MODEL_NAME = 'weights/PHOC_best_trained.pth'
@@ -53,29 +55,41 @@ path3 = paths_batch[8]
 
 
 # Load PHOCnet model
-#phoc_model = torch.load(MODEL_NAME)
+phoc_model = torch.load(MODEL_NAME)
 freeze_phoc_model = FrozenPHOCnet(MODEL_NAME)
 #embedding_net = EmbeddingNet()
 
 
-model = freeze_phoc_model
+model = phoc_model
 
 measurer = SiameseMeasurer(model, cuda_id)
 
 phoc_rep = measurer.get_embedding(img1)
 
+start = time.time()
 distance12 = measurer.get_distance(img1, img2)
 distance13 = measurer.get_distance(img1, img3)
+end = time.time()
+time_slow = end-start
+
+start = time.time()
+measurer.set_base_representation(img1)
+distance12_fast = measurer.get_distance_fast(img2)
+distance13_fast = measurer.get_distance_fast(img3)
+end = time.time()
+time_fast = end-start
+
 
 print(phoc_rep)
 
 print(f"Image 1 -> class{label1.item()}, file:{path1}")
 print(f"Image 1 -> class{label2.item()}, file:{path2}")
 print(f"Distance = {distance12}")
+print(f"Distance fast = {distance12_fast}")
 
 print(f"Image 1 -> class {label1.item()}, file: {path1}")
 print(f"Image 1 -> class {label3.item()}, file: {path3}")
 print(f"Distance = {distance13}")
+print(f"Distance_fast = {distance13_fast}")
 
-
-
+print(f"Time slow:{time_slow}, time fast:{time_fast}")

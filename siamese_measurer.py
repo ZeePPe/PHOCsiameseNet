@@ -7,6 +7,7 @@ class SiameseMeasurer:
     def __init__(self, model, cuda_id=None):
         self.model = model
         self.cuda_id = cuda_id
+        self.base_representation = None
 
         if cuda_id is not None:
             if len(cuda_id) > 1:
@@ -42,7 +43,48 @@ class SiameseMeasurer:
         
         return euclidean_distance.item()
 
-    def get_embedding(self, img):
+    """
+    Posso impostare una rappresentazione base per riutilizzarla per calcolare le
+    distanze passando una sola nuova immagine
+    """
+    def set_base_representation(self, img):
+        img = img[None, :]
+
+        if self.cuda_id is not None:
+            if len(self.cuda_id) > 1:
+                img = img.cuda()
+            else:
+                img = img.cuda(self.cuda_id[0])
+        
+        phoc_rep = self.model(img)
+        if type(phoc_rep) is dict:
+            phoc_rep = phoc_rep['phoc'][-1]
+        
+        self.base_representation = phoc_rep
+
+    """
+    Calcola la distanza tra l'immagine passata e la rappresentazione di base
+    """
+    def get_distance_fast(self, img):
+        assert(not self.base_representation is None)
+
+        img = img[None, :]
+
+        if self.cuda_id is not None:
+            if len(self.cuda_id) > 1:
+                img = img.cuda()
+            else:
+                img = img.cuda(self.cuda_id[0])
+        
+        phoc_rep = self.model(img)
+        if type(phoc_rep) is dict:
+            phoc_rep = phoc_rep['phoc'][-1]
+
+        euclidean_distance = F.pairwise_distance(phoc_rep, self.base_representation)
+        
+        return euclidean_distance.item()
+    
+    def get_embedding(self, img, sigmoid=True):
 
         img = img[None, :]
 
@@ -54,6 +96,9 @@ class SiameseMeasurer:
 
         phoc_rep = self.model(img)
         if type(phoc_rep) is dict:
-            phoc_rep = torch.sigmoid(phoc_rep['phoc'] )
+            if sigmoid:
+                phoc_rep = torch.sigmoid(phoc_rep['phoc'] )
+            else:
+                phoc_rep = phoc_rep['phoc'][-1]
 
         return phoc_rep

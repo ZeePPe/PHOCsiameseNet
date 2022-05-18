@@ -8,6 +8,7 @@ from torch.optim import lr_scheduler
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import torch.nn as nn
+import pickle
 
 from models.trainer import fit
 
@@ -26,6 +27,7 @@ from models.metrics import AverageNonzeroTripletsMetric
 from models.networks import FrozenPHOCnet
 from train_config import getTrainOptions
 
+from hard_triplets_utils import separate_train_dataset, HardTripletSelector, edit_distance_hard_negative
 import config as C
 
 print(" --- Training Siamese N-Gram network ---")
@@ -67,23 +69,33 @@ train_dataset = ImageFolderWithPaths(root=options.training_path,
                                             myTransforms.Resize(),
                                             myTransforms.ToTensor(),
                                         ]))
-test_dataset = ImageFolderWithPaths(root=options.test_path,
+test_dataset = ImageFolderWithPaths(root=options.training_path,
                                 transform=transforms.Compose([
                                             myTransforms.toRGB(),
                                             myTransforms.Resize(),
                                             myTransforms.ToTensor(),
                                         ]))
 
+with open(C.EMBEDDING_FILE, "rb") as embeddings_file:
+        embeddings = pickle.load(embeddings_file)
 
+class_to_idx = train_dataset.class_to_idx
+# maximum number of samples we want to use in the train subset
+n_samples = 8
+# split the dataset in train_subset and validation_subset
+train_subset, validation_subset = separate_train_dataset(train_dataset, n_samples, embeddings)  
+print(type(train_subset))
+# Sono delle liste????
+# dovrebbero essere dei tipi dataset!!!!
 
 train_labels = torch.tensor(train_dataset.targets, dtype=torch.int64)
 test_labels = torch.tensor(test_dataset.targets, dtype=torch.int64)
 
-# Creiamo dei batches considerando tutte le classi disponibili e campionando soltanto i top elements per ogni classi
-# da modificare la classe HardPositiveBatchSampler in ataset.myImageFolder
-train_batch_sampler = HardPositiveBatchSampler(train_labels, n_classes=n_classes, n_samples=n_samples)
-test_batch_sampler = HardPositiveBatchSampler(test_labels, n_classes=n_classes, n_samples=n_samples)
-
+# Creiamo dei batches considerando tutte le classi disponibili e campionando soltanto i top elements per
+# per ogni classe prendendo 3 elementi per classe (quando disponibili)
+# MODIFICARE QUESTO PER METTERE GLI ELEMENTI CHE CI INTERESSANO - Mario
+train_batch_sampler = HardPositiveBatchSampler(train_labels, n_classes=n_classes, n_samples=3)
+test_batch_sampler = HardPositiveBatchSampler(test_labels, n_classes=n_classes, n_samples=3)
 
 if cuda_id is not None:
     kwargs = {'num_workers': num_workers, 'pin_memory': True}
@@ -93,10 +105,8 @@ else:
 online_train_loader = DataLoader(train_dataset, batch_sampler=train_batch_sampler, collate_fn=my_collate, **kwargs)
 online_test_loader = DataLoader(test_dataset, batch_sampler=test_batch_sampler, collate_fn=my_collate, **kwargs)
 
-#online_train_loader = DataLoader(train_dataset, batch_size=5, collate_fn=my_collate, **kwargs)
-#online_test_loader = DataLoader(test_dataset, batch_size=5, collate_fn=my_collate, **kwargs)
 
-
+# caricamento del modello per il calcolo degli embedding ------------------------------------------------------------
 #embedding_net = EmbeddingNet()
 if frozen_net:
     embedding_net = FrozenPHOCnet(options.base_model)
@@ -104,7 +114,6 @@ if frozen_net:
 else:
     embedding_net = torch.load(options.base_model)
     out_features = 648
-
 
 model = embedding_net
 if cuda_id is not None:
@@ -121,13 +130,20 @@ margin = 1.
 #   RandomNegativeTripletSelector(margin)   ->
 #   SemihardNegativeTripletSelector(margin) -> 
 #   HardPositiveHardNegativeTripletSelector()  -> Mario selector
+#    HardTripletSelector(train_subset, edit_distance_hard_negative, class_to_idx) -> Mario
 
-# definiamo un nuovo triplete selector che possa selezionare casualmente all'interno del batch a caso un elemento 
-# per il positivo e uno a caso per il negativo fissata la hard negative class
 
-triplet_selector = HardPositiveHardNegativeTripletSelector()
 triplet_selector = SemihardNegativeTripletSelector(margin)
+
+#triplet_selector = HardTripletSelector(train_subset, edit_distance_hard_negative, class_to_idx)
+#triplets = triplet_selector.get_triplets()
+# il metodo detrno la loss prevede triplets = self.triplet_selector.get_triplets(embeddings, target)
+# i batch sono insiemi di triplette!
+
+
 loss_fn = OnlineTripletLoss(margin, triplet_selector)
+# in alternativa possiamo usare TripletLoss(anchor, positive, negative) che lavora su una singola tripletta
+# ma sarebbe meglio lavorare su batches
 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 scheduler = lr_scheduler.StepLR(optimizer, sch_step, gamma=sch_gamma, last_epoch=-1)
 

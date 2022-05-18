@@ -97,7 +97,7 @@ def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, 
                 optimizer.zero_grad()
                 out = model(image_tensor)
                 if type(out) is dict:
-                    out =out['phoc'][-1]
+                    out = out['phoc'][-1]
                 outputs[i,:] = out
 
                 i += 1

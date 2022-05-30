@@ -11,18 +11,25 @@ from siamese_measurer import SiameseMeasurer
 import os
 import pickle
 import config as C
-
-"""Mario"""
+from tqdm import tqdm
+"""
+The script creates the .pkl file containing the PHOC embedding of all the images in 
+the selected alphbet.
+"""
 
 cuda = torch.cuda.is_available()
 
 if cuda:
+    device = 'cuda'
     cuda_id = [0]
 else:
+    device = 'cpu'
     cuda_id = None
 
+root = C.ALPHABET_ROOT
+#simple_dataset_augmentation(root, min_n_samples=3, augmentation_fn=random_noise)
 
-train_dataset = ImageFolderWithPaths(root='data/limited_alphabet',
+train_dataset = ImageFolderWithPaths(root=root,
                                 transform=transforms.Compose([
                                             myTransforms.toRGB(),
                                             myTransforms.Resize(),
@@ -35,9 +42,9 @@ dataloader = DataLoader(train_dataset, collate_fn=my_collate)
 dataiter = iter(dataloader)
 
 
-phoc_model = torch.load(C.USED_MODEl, map_location=torch.device('cpu'))
+phoc_model = torch.load(C.USED_MODEL, map_location=torch.device('cpu'))
 
-if cuda_id is not None:
+if cuda_id is not None: 
     if len(cuda_id) > 1:
         model = nn.DataParallel(phoc_model, device_ids=cuda_id)
         model.cuda()
@@ -49,10 +56,10 @@ measurer = SiameseMeasurer(phoc_model)
 
 embeddings = {}
 
-for img, label, path in dataiter:
+for img, label, path in tqdm(dataiter):
     fileName = os.path.basename(path[0])
-    print(fileName)
-    phoc_rep_t = measurer.get_embedding(img[0], sigmoid=False)
+    #print(fileName)
+    phoc_rep_t = measurer.get_embedding(img[0].to(device), sigmoid=False)
     phoc_rep_n = phoc_rep_t.cpu().detach().numpy()
     embeddings[fileName] = phoc_rep_n
 

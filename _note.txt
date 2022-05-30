@@ -2,10 +2,12 @@ Esempio di comando per l'esecuzione
 
 
 # lancia il programma in background e salva l'output in ./out/train_out_02_fineT.txt
-nohup python -u train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 30 --sch_gamma 0.1 --frozen True --base_model weights/PHOC_best.pth --save_model weights/PHOC_trained_mario.pth --training_path data/alphabet_mario --test_path data/limited_alphabet > ./out/train_out_02_fineT.txt &
+nohup python -u train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 10 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/trained_01.pth --training_path data/alphabet_augmented > ./out/train_01.txt &
+                train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 25 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/PHOC_trained_mario.pth --training_path data/alphabet_augmented 
 
 # Lancia il programma in modo classico
-python train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 30 --sch_gamma 0.1 --frozen True --base_model weights/PHOC_best.pth --save_model weights/PHOC_trained_mario.pth --training_path data/alphabet_mario --test_path data/limited_alphabet
+python train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 10 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/PHOC_trained_01.pth --training_path data/alphabet_augmented
+
 
 
 # Come puoi notare si passa lo stesso path per il training set e il test stet

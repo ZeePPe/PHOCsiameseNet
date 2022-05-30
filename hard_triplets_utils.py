@@ -1,16 +1,33 @@
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 import os
-import torch
-from torchvision import transforms
-from dataset import myTransforms
-from dataset.myImageFolder import ImageFolderWithPaths
-import pickle
-import config as C
 from models.utils import *
 import numpy as np
 from torch.utils.data.sampler import BatchSampler
 import textdistance
+import cv2
+
+"""
+Augment dataset images in such a way each class has at least min_n_samples samples. 
+If a class has less than min_n_samples samples, augmentation is performed on the images for creating new samples
+"""
+# CONTROLLA COME VIENE PASSSATA LA FUNZIONE DI AUGMENTATION, I PARAMETRI NON DOVREBBERO ESSERE SETTATI DENTRO QUESTO METODO! (mode= amount=)
+def simple_dataset_augmentation(root, min_n_samples, augmentation_fn):
+
+    folders = [folder for folder in os.listdir(root) if not folder.startswith('.')]
+    for folder in folders:
+        n = len(os.listdir(root + folder))
+
+        while n < min_n_samples:
+            file = np.random.choice([file for file in os.listdir(root + folder) if not file.startswith('.')])
+            path = root + folder + '/' + file
+            image = cv2.imread(path, 0)
+            augment = augmentation_fn(image, mode='s&p', amount = 0.03)
+            augment = np.array(augment)
+            new_file = file[:8] + str(int(file.split('_')[2]) + 1) + file[9:]
+            new_path = root + folder + '/' + new_file
+            cv2.imwrite(new_path, 255 * augment)
+            n = len(os.listdir(root + folder))
 
 """
 Returns the indices of the first ten classes that have the most similar label to the input class
@@ -29,33 +46,47 @@ def edit_distance_hard_negative(idx, class_to_idx):
 
 
 """
-The selector chooses all possible combination within the input subset for the anchor-positive couples.
+Selector that chooses all possible combination within the input subset for the anchor-positive couples.
 For each class, is then calculated a set of neirest negative classes (using a function hard_negatives_fn) from which the negative 
-example is randomly selected
+example is randomly selected 
 """
 class HardTripletSelector(TripletSelector):
 
-    def __init__(self, batch, hard_negatives_fn, class_to_idx):
-        self.batch = batch
+    def __init__(self, hard_negatives_fn, class_to_idx, p_hardneg=0.8):
+        super(HardTripletSelector, self).__init__()
         self.hard_negatives = hard_negatives_fn
         self.class_to_idx = class_to_idx
+        self.p_hardneg = p_hardneg
+        self.p_otherneg = 1-p_hardneg
 
-    def get_triplets(self):
+    def get_triplets(self, embeddings, labels):
+        labels = labels.cpu().data.numpy()
         triplets = []
 
-        for i in range(len(self.batch)):
-
-            if len(self.batch[i]) < 2:
+        for label in set(labels):
+            label_mask = (labels == label)
+            label_indices = np.where(label_mask)[0]
+            if len(label_indices) < 2:
                 continue
 
-            anchor_positives = list(combinations(self.batch[i], 2))
+            anchor_positives = list(combinations(label_indices, 2))
             anchor_positives = np.array(anchor_positives)
-            hard_classes = self.hard_negatives(i, self.class_to_idx)
+            hard_classes = self.hard_negatives(label, self.class_to_idx)
 
             for anchor_positive in anchor_positives:
-                hard_class = np.random.choice(hard_classes)
-                hard_negative = np.random.choice(self.batch[hard_class])
-                triplets.append([anchor_positive[0], anchor_positive[1], hard_negative])
+
+                hard_class_samples = [np.where(labels == hard_class)[0] for hard_class in hard_classes]
+                hard_class_samples = [samples for samples in hard_class_samples if len(samples) > 0]
+                hard_class_samples = [sample for samples in hard_class_samples for sample in samples]
+
+                negative_indices = np.where(np.logical_not(label_mask))[0]
+                negative = np.random.choice(negative_indices)
+
+                if len(hard_class_samples) > 0:
+                    hard_negative = np.random.choice(hard_class_samples)
+                    negative = np.random.choice([hard_negative, negative], p = [self.p_hardneg, self.p_otherneg])
+
+                triplets.append([anchor_positive[0], anchor_positive[1], negative])
 
         triplets = np.array(triplets)
 
@@ -109,7 +140,7 @@ The selected ones are as distant as possible from each other, according to a mea
 In this way, it is possible to create hard triplets by randomly choosing in the train_subset.
 The validation_subset is made up of the samples that are not used in the train_subset, with a maximum of (2*n_samples) samples per class. 
 """
-def separate_train_dataset(dataset, n_samples, embeddings):
+def separate_train_dataset(dataset, n_samples, embeddings, best_n_samples_fn):
     labels = torch.tensor(dataset.targets, dtype = torch.int64)
     labels_set = list(set(labels.numpy()))
     class_to_idx = dataset.class_to_idx
@@ -125,43 +156,64 @@ def separate_train_dataset(dataset, n_samples, embeddings):
         ind = label_to_indices[label]
         imgs = [samples[i][0] for i in ind]
 
-        # farthest_n_samples parametro?
-        train_indices = [ind[0] + i for i in farthest_n_samples(imgs, n_samples, embeddings)]
+        train_indices = [ind[0] + i for i in best_n_samples_fn(imgs, n_samples, embeddings)]
         train.append(train_indices)
 
         val_indices = [i for i in ind if i not in train_indices][:(2*n_samples)]
         val.append(val_indices)
 
-
+    train = [idx for class_ in train for idx in class_]
+    val = [idx for class_ in val for idx in class_]
 
     return train, val
 
 
-#### ESEMPIO DI ESECUZIONE PER CREARE LE TRIPLETTE A PARTIRE DAL DATASET ####
-if __name__ == "__main__":
-    # we open the embedding file and save it in the embedding variable
-    with open(C.EMBEDDING_FILE, "rb") as embeddings_file:
-        embeddings = pickle.load(embeddings_file)
+class HardPositiveBatchSampler(BatchSampler):
+    """
+    BatchSampler samples n_classes (all classes) and within these classes samples the Hardest n_samples. (n_samples min 2)
+    Returns batches of size n_classes * n_samples
+    """
+
+    def __init__(self, labels, subset, n_classes, n_samples):
+        self.subset = subset
+        self.labels = labels
+        self.labels_set = list(set(self.labels.numpy()))
+
+        self.subset_labels = [self.labels.numpy()[ind] for ind in self.subset.indices]
+        self.label_to_indices = {label: np.where(self.subset_labels == label)[0]
+                                 for label in self.labels_set}
+        for l in self.labels_set:
+            np.random.shuffle(self.label_to_indices[l])
+        self.used_label_indices_count = {label: 0 for label in self.labels_set}
+        self.count = 0
+        self.n_classes = n_classes
+        self.n_samples = n_samples
+        self.n_dataset = len(self.subset)
+
+        self.batch_size = 0
+        for l in self.labels_set:
+            if len(self.label_to_indices[l]) < n_samples:
+                self.batch_size += len(self.label_to_indices[l])
+            else:
+                self.batch_size += n_samples
 
 
-    train_dataset = ImageFolderWithPaths(root='data/alphabet',
-                                    transform=transforms.Compose([
-                                                myTransforms.toRGB(),
-                                                myTransforms.Resize(),
-                                                myTransforms.ToTensor(),
-                                            ]))
+    def __iter__(self):
+        self.count = 0
+        while self.count + self.batch_size <= self.n_dataset:
+            classes = np.random.choice(self.labels_set, self.n_classes, replace=False) # Replace False da errore
+            indices = []
+            for class_ in classes:
+                indices.extend(self.label_to_indices[class_][
+                               self.used_label_indices_count[class_]:self.used_label_indices_count[
+                                                                         class_] + self.n_samples])
+                self.used_label_indices_count[class_] += self.n_samples
+                if self.used_label_indices_count[class_] + self.n_samples > len(self.label_to_indices[class_]):
+                    np.random.shuffle(self.label_to_indices[class_])
+                    self.used_label_indices_count[class_] = 0
+            yield indices
+            self.count += self.n_classes * self.n_samples
 
-    class_to_idx = train_dataset.class_to_idx
-    # maximum number of samples we want to use in the train subset
-    n_samples = 8
-    # split the dataset in train_subset and validation_subset
-    train_subset, validation_subset = separate_train_dataset(train_dataset, n_samples, embeddings)
+    def __len__(self):
+        return self.n_dataset // self.batch_size
 
-    # count how many classes are not empty in the validation_subset
-    print(len([pos for pos in validation_subset if len(pos)>0]))
-
-    # then we create the triplets
-    triplet_selector = HardTripletSelector(train_subset, edit_distance_hard_negative, class_to_idx)
-    triplets = triplet_selector.get_triplets()
-
-    print("done")

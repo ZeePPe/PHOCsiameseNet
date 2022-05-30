@@ -1,6 +1,9 @@
 """
-Questo file contine ele variabili condivise
+Questo file contine le variabili condivise
 """
+
+# ALPHABET PATH 
+ALPHABET_ROOT = "data/alphabet_augmented"
 
 # NET WEIGHTS
 PHOC_ONIAM = "weights/PHOC_best.pth"

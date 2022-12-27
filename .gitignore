@@ -6,3 +6,6 @@ models/__pycache__/*
 dataset/__pycache__/*
 .vscode/*
 experiment_MINST.py
+es_tesi/*
+_note.txt
+es_tesi.py

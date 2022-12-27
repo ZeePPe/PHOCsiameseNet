@@ -48,6 +48,27 @@ class FrozenPHOCnet(nn.Module):
     def get_embedding(self, x):
         return self.forward(x)
 
+class PHOCnet(nn.Module):
+    def __init__(self, PHOC_weights, dim_out=648):
+        super(PHOCnet, self).__init__()
+        self.phoc = torch.load(PHOC_weights)
+        self.fc = nn.Sequential(nn.Linear(dim_out, 256),
+                                nn.PReLU(),
+                                nn.Linear(256, 256),
+                                )        
+        #freeze PHOCnet
+        #for param in self.phoc.parameters():
+        #    param.requires_grad = False
+
+    def forward(self, x):
+        output = self.phoc(x)
+        output = output['phoc'][-1]
+        output = self.fc(output)
+        return output
+
+    def get_embedding(self, x):
+        return self.forward(x)
+
 class EmbeddingNetL2(EmbeddingNet):
     def __init__(self):
         super(EmbeddingNetL2, self).__init__()

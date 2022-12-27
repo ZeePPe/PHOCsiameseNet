@@ -16,7 +16,7 @@ from dataset.myDataset import my_collate, MyImagesDS
 from models.losses import OnlineTripletLoss
 from models.utils import HardestNegativeTripletSelector, RandomNegativeTripletSelector, SemihardNegativeTripletSelector # Strategies for selecting triplets within a minibatch
 from models.metrics import AverageNonzeroTripletsMetric
-from models.networks import FrozenPHOCnet
+from models.networks import FrozenPHOCnet, PHOCnet
 from train_config import getTrainOptions
 from hard_triplets_utils import separate_train_dataset, HardTripletSelector, edit_distance_hard_negative, farthest_n_samples, HardPositiveBatchSampler
 import config as C
@@ -35,6 +35,8 @@ log_interval = options.log_interval
 
 sch_step = options.sch_step
 sch_gamma = options.sch_gamma
+
+max_batchsize = options.max_batchsize
 
 frozen_net = True if options.frozen == "True" else False
 
@@ -91,8 +93,8 @@ if frozen_net:
     embedding_net = FrozenPHOCnet(options.base_model)
     out_features = 256
 else:
-    embedding_net = torch.load(options.base_model)
-    out_features = 648
+    embedding_net = PHOCnet(options.base_model)
+    out_features = 256
 
 model = embedding_net
 if cuda_id is not None:
@@ -120,4 +122,4 @@ loss_fn = OnlineTripletLoss(margin, triplet_selector)
 optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 scheduler = lr_scheduler.StepLR(optimizer, sch_step, gamma=sch_gamma, last_epoch=-1)
 
-fit(online_train_loader, online_test_loader, model, loss_fn, optimizer, scheduler, n_epochs, cuda_id, log_interval, out_features=out_features, save_model=options.save_model, metrics=[AverageNonzeroTripletsMetric()])
+fit(online_train_loader, online_test_loader, model, loss_fn, optimizer, scheduler, n_epochs, cuda_id, log_interval, out_features=out_features, save_model=options.save_model, metrics=[AverageNonzeroTripletsMetric()], save_each_epoch=False, max_batchsize=max_batchsize)

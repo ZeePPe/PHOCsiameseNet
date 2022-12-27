@@ -12,6 +12,8 @@ import os
 import pickle
 import config as C
 from tqdm import tqdm
+#from hard_triplets_utils import simple_dataset_augmentation
+#from skimage.util import random_noise
 """
 The script creates the .pkl file containing the PHOC embedding of all the images in 
 the selected alphbet.

@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs, cuda_id, log_interval, metrics=[],
-        start_epoch=0, save_model="model.pth", out_features=648):
+        start_epoch=0, save_model="model.pth", out_features=648, save_each_epoch=False, max_batchsize=0):
     """
     Loaders, model, loss function and metrics should work together for a given task,
     i.e. The model should be able to process data output of loaders,
@@ -13,6 +13,8 @@ def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs
     Online triplet learning: batch loader, embedding model, online triplet loss
     """
     best_score = -1
+    best_val_los = -1
+    best_train_los = -1
     for epoch in range(0, start_epoch):
         scheduler.step()
 
@@ -20,33 +22,50 @@ def fit(train_loader, val_loader, model, loss_fn, optimizer, scheduler, n_epochs
         #scheduler.step()
 
         # Train stage
-        train_loss, metrics = train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, log_interval, metrics)
+        train_loss, metrics = train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, log_interval, metrics, max_batchsize=max_batchsize)
 
         message = '     - Epoch: {}/{}. Train set: Average loss: {:.4f}'.format(epoch + 1, n_epochs, train_loss)
         for metric in metrics:
             message += '\t{}: {}'.format(metric.name(), metric.value())
 
         val_loss, metrics = test_epoch(val_loader, model, out_features, loss_fn, cuda_id, metrics)
-        val_loss /= len(val_loader)
 
-        message += '\n     - Epoch: {}/{}. Validation set: Average loss: {:.4f}'.format(epoch + 1, n_epochs, val_loss)
+        norm_val_loss = val_loss/len(val_loader)
+
+        message += '\n     - Epoch:{}/{}. Validation set: Average loss:{:.4f} Normalized Average loss:{:.4f}'.format(epoch + 1, n_epochs, val_loss, norm_val_loss)
         for metric in metrics:
             message += '\t{}: {}'.format(metric.name(), metric.value())
-
-        print(message)
+        
 
         # save model
         score = sum(metric.value() for metric in metrics)
         score = score/len(metrics)
-        if (best_score == -1) or (score < best_score and 0<val_loss<1):
+        
+        message += "\tScore:{}".format(score)
+        print(message)
+
+        if (best_score == -1) or (score < best_score):
             best_score = score
-            torch.save(model, save_model)
-            print("Save model")
+            torch.save(model, save_model.split('.')[0]+"_bestscore_"+str(epoch+1)+"."+save_model.split('.')[-1])
+            print("Save best score model")
+
+        if (best_train_los == -1) or (train_loss < best_train_los):
+            best_train_los = train_loss
+            torch.save(model, save_model.split('.')[0]+"_besttrainloss_"+str(epoch+1)+"."+save_model.split('.')[-1])
+            print("Save best loss on Train model")
+        
+        if (best_val_los == -1) or (val_loss < best_val_los):
+            best_val_los = val_loss
+            torch.save(model, save_model.split('.')[0]+"_bestvalloss_"+str(epoch+1)+"."+save_model.split('.')[-1])
+            print("Save best loss on Validation model")
+
+        if save_each_epoch:
+            torch.save(model, save_model.split('.')[0]+"_"+str(epoch+1)+"_."+save_model.split('.')[-1])
         
         scheduler.step()
 
 
-def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, log_interval, metrics):
+def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, log_interval, metrics, max_batchsize=0):
     for metric in metrics:
         metric.reset()
  
@@ -63,7 +82,11 @@ def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, 
         target = target if len(target) > 0 else None
         if not type(data) in (tuple, list):
             data = (data,)
-        
+
+        if max_batchsize>0:
+            data = data[:max_batchsize]
+            target = target[:max_batchsize]
+            
         if cuda_id is not None:
             if len(cuda_id) > 1:
                 if target is not None:
@@ -71,7 +94,8 @@ def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, 
             else:
                 if target is not None:
                     target = target.cuda(cuda_id[0])
-
+        
+        
         # if image are not all same size we cannot create a single batch
         if len(data) == 1:        
             if cuda_id is not None:
@@ -83,7 +107,7 @@ def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, 
             optimizer.zero_grad()
             outputs = model(*data)
         else:
-            # for image inbatch, vompute input, appends to out, convert out in tensor
+            # for image inbatch,compute input, appends to out, convert out in tensor
             outputs = torch.zeros(len(data), out_features)
             i=0
             for image_tensor in data:
@@ -101,6 +125,9 @@ def train_epoch(train_loader, model, out_features, loss_fn, optimizer, cuda_id, 
                 outputs[i,:] = out
 
                 i += 1
+        
+        torch.cuda.empty_cache()
+
 
         if type(outputs) not in (tuple, list):
             outputs = (outputs,)

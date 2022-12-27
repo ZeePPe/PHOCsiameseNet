@@ -1,14 +1,25 @@
 Esempio di comando per l'esecuzione
 
+# conda env
+conda activate pytorch
 
 # lancia il programma in background e salva l'output in ./out/train_out_02_fineT.txt
 nohup python -u train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 10 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/trained_01.pth --training_path data/alphabet_augmented > ./out/train_01.txt &
                 train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 25 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/PHOC_trained_mario.pth --training_path data/alphabet_augmented 
 
+nohup python -u train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 10 --sch_gamma 0.1 --samples_number 10 --frozen True --base_model weights/PHOC_best.pth --save_model weights/trained_10p.pth --training_path data/alphabet > ./out/train_10p01.txt &
+ 
+
+
 # Lancia il programma in modo classico
-python train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 10 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/PHOC_trained_01.pth --training_path data/alphabet_augmented
+python train_PHOC.py --cuda_id 0 --n_epochs 100 --sch_step 10 --sch_gamma 0.1 --samples_number 5 --frozen True --base_model weights/PHOC_best.pth --save_model weights/trained_10p.pth --training_path data/alphabet
 
 
 
 # Come puoi notare si passa lo stesso path per il training set e il test stet
 # quando abbiamo i due differenti dataset possiamo passargli i due path diversi
+
+
+###training
+
+1. lancia il file 'embedding_PHOC.py' per creare il file pkl in 'data/files'

@@ -1,49 +1,54 @@
-# Siamese Network framework
+# Keyword Spotting based on N-gram retrieval
 
-## fasi preliminari
-installare versione dell'ambiente 
+The repository contatins all code for the KWS spotting based on a core retrieval system that can recognaze sequences of few characters (N-grams)
 
-# Le diverse cartelle
-## data
-La cartella `data` contiene i dati per i diversi dataset.
-in questa cartella si possono inserire delle cartelle per ogni alfabeto che si desidera utilizzare.
-Un alfabeto non è altro che l'insieme di tutti i simboli di base per lo spotting
-(Nel caso di N-grammi, un alfabeto è composto da tutti i possibili N-grammi presenti)
 
-Ogni cartella di un alfabeto è composta da sottocartelle, una per ogni simbolo dell'alfabeto.
-Ogni caretella simbolo contiene le immagini di esemplari appartenenti a quel simbolo.
+# Preliminary Stages
+## Install the conda environment
+All this repo uses a conda environment. Firsto install the environment:
+```
+conda env create -f environment.yml
+```
+Once the env is installed, activate it:
+```
+conda activate pytorch
+```
+
+## Prepare the data folder
+The `data` folder contains data for the different datasets.
+The folder must contain a folder of the alphabet you want to use. An alphabet is nothing more than the set of all the basic symbols for spotting (In the case of N-grams, an alphabet is made up of all possible N-grams present). Each folder of an alphabet consists of subfolders, one for each symbol in the alphabet. Each symbol folder contains images of specimens belonging to that symbol.
 
 ![Example of an alphabet folder](img/alphabet_example.png)
 
-Potrebbe essere comodo creare due diversi insiemi, uno per il training e uno per il test. In questo caso conviene creare due cartelle differentei coneneti ognuma gli elementi 
+The `data` folder must also contain a `rows` folder containing images of rows of handwritten documents to be used for searching. The folder is organized into subfolders, one for each handwritten document, each of which contains all the images of the document lines.
 
-## dataset
-La caretlla `dataset` è un package pyton che contiene tutti i moduli per gestire i dataset.
+Finally, the `data` folder must also contain a `GT` folder containing the ground thruth files for the handwritten lines. The folder is organized into subfolders, one for each handwritten document, each of which contains all the text files with the transcripts of the text lines.
+
+# The Important Stuff
+## datasets
+The `dataset` folder is a pyton package that contains all the modules to manage datasets.
+
+## models
+The `models` folder is a pyton package that contains all the modules to manage the Siamese network.
 
 
-## modules
-La caretlla `modules` è un package pyton che contiene tutti i moduli per gestire la rete siamese.
+the package contains the `networks.py` module which provides various network structures
+inside this module i implemented the `FrozenPHOCnet` class which is the same as the one we discussed
+In practice, the network consists of a frozen PHOCnet and two fully connected towable layers.
+The output of the network is a tensor of 256 elements
+
+the package contains the `trainer.py` module which manages the training of a Siamese net.
+
+## weights
+The weights of the trained networks are saved in the `weights` folder
 
 
-il package contiene il modulo `networks.py`  che fornisci diverse strutture di reti
-all'interno di questo modulo ho implementatlo la classe `FrozenPHOCnet` che è uguale a quella della quale abbiamo discusso
-In pratica la rete è composta da una PHOCnet congelata e da due livelli fully connected trainabili.
-L'uscita della rete è un tensore di 256 elementi
+## Siamese network to measure N-gram similarity
+The `siamese_measurer.py` module contains the `SiameseMeasurer` class. This class allows to calculate the distance between two images given an "arm" of a Siamese net
+(Indeed, when the system saves the model of the network, it only saves one arm. In this way, memory space can be saved and the process of calculating the distances between several elements can be optimized)
 
-il package contiene il modulo `trainer.py` gestisce l'addestramento di una rete Siamese.
+## N-gram Retrieval System
+The `ngram_retriever.py` module contains the `Spotter` class which allows you to search for an N-gram within a line of text. The search is performed by means of a sliding window and an instance of the SiameseMeasurer class
 
-## weights 
-Nella cartella `weights` vengono salvati i pesi delle reti a valle della fase di addestramenti 
-
-## train_PHOCnet.py
-...
-
-## test_PHOCnet
-Questo file contiene un po' di esempi dell'utilizzo della rete e di come calcolare le distanze tra due imamgini
-
-## siamese_measurer.py
-Questo modulo contiene la classe `SiameseMeasurer`. Questa classe permette di calcolare la distanza tra due immagini data un "braccio" di una rete siamese
-(In effetti quando il sistema salva il modello della rete salva soltanto un braccio. In questo modo si può salvare spazio in memoria e ottimizzare il processo di calcolo delle distanza tra più elementi)
-
-# Per lo Spotting
-possiamo qui implementare un file `spotting_siamese.py` nel quale implementiamo un sistema che prende in input una linea di testo, e utilizzando la classe `SiameseMesaurer` fa lo spotting di ogni elemento dell'alfabeto...
+## Word Spotting
+The `run_spotting.py` file allows you to perform word spotting using the sliding window based N-gram retrieval core defined in the `ngram_retriever.py` module.

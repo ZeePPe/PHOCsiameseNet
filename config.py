@@ -3,12 +3,16 @@ Questo file contine le variabili condivise
 """
 
 # ALPHABET PATH 
-ALPHABET_ROOT = "data/alphabet_augmented"
+ALPHABET_ROOT = "data/alphabet"
 
 # NET WEIGHTS
 PHOC_ONIAM = "weights/PHOC_best.pth"
 
-USED_MODEL = PHOC_ONIAM
+USED_MODEL = "weights/trained_001_45_.pth"
+USED_MODEL = "weights/p10_01/trained_10p_bestvalloss_46.pth"
+USED_MODEL = "weights/p10_01_nof/trained_10p_bestvalloss_7.pth"
+
+
 
 # EMBEDDING FILE
 EMBEDDING_FILE = "data/files/embeddings.pkl"

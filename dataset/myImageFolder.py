@@ -31,8 +31,6 @@ class ImageFolderWithPaths(datasets.ImageFolder):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-
-        
         # make a new tuple that includes original and the path
         #tuple_with_path = (original_tuple + (path,))
 

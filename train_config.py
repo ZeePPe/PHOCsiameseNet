@@ -9,7 +9,8 @@ class getTrainOptions():
         self.parser.add_argument("-sn", "--samples_number", type=int, help="Num of samples per class", default=5)
         self.parser.add_argument("-lr", "--learning_rate", type=float, help="Starting Learning Rate", default=1e-4)
         self.parser.add_argument("-ne", "--n_epochs", type=int, help="Number of training epocs", default=10)
-        self.parser.add_argument("-li", "--log_interval", type=int, help="log_interval", default=10)
+        self.parser.add_argument("-bs", "--max_batchsize", type=int, help="Max size of batch. if0 there is no limit.", default=0)
+        self.parser.add_argument("-li", "--log_interval", type=int, help="interval of epochs for the log output", default=10)
         self.parser.add_argument("-ss", "--sch_step", type=int, help="Step for scheduler, num ephocs after start de LR decrease", default=5)
         self.parser.add_argument("-sg", "--sch_gamma", type=float, help="Gamma for scheduler", default=0.1)
         self.parser.add_argument("-c", "--cuda_id",
